@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-ink-50 text-ink-900 antialiased;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold
+      transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 select-none;
+    min-height: 3rem;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-sm shadow-brand-900/10;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-ink-700 border border-ink-200 hover:bg-ink-50;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-ink-600 hover:bg-ink-100;
+  }
+  .input {
+    @apply w-full rounded-xl border border-ink-200 bg-white px-3 py-3 text-base text-ink-900
+      placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30;
+    min-height: 3rem;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ink-600;
+  }
+  .card {
+    @apply rounded-2xl border border-ink-200 bg-white shadow-sm;
+  }
+  .field-error {
+    @apply mt-1 text-xs font-medium text-red-600;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+}

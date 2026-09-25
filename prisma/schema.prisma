@@ -1,0 +1,151 @@
+// Idly Express ERP - Prisma schema
+// Database: SQLite (file-based, offline-first friendly)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: SQLite has no native enum support in Prisma.
+// These are stored as String and constrained via Zod at the API boundary:
+// CustomerType: HOTEL | RESTAURANT | CATERING | CORPORATE | RETAIL
+// ProductCategory: IDLI | CHAPATI | IDIYAPPAM | SANDHAGAI | OTHER
+// PriceType: WHOLESALE | RETAIL
+// Session: MORNING | EVENING
+// Channel: PHONE | DIRECT | ONLINE
+
+model Customer {
+  id           String   @id @default(cuid())
+  customerCode String   @unique
+  name         String
+  phone        String   @unique
+  address      String?
+  area         String?
+  route        String?
+  customerType String   @default("RETAIL")
+  notes        String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orders    Order[]
+  templates OrderTemplate[]
+  payments  Payment[]
+
+  @@index([name])
+  @@index([area])
+  @@index([route])
+  @@index([customerType])
+  @@index([active])
+}
+
+model Product {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  category       String   @default("OTHER")
+  wholesalePrice Float
+  retailPrice    Float
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orders     Order[]
+  templates  OrderTemplate[]
+  production Production[]
+
+  @@index([category])
+  @@index([active])
+}
+
+model Order {
+  id           String    @id @default(cuid())
+  customerId   String
+  productId    String
+  quantity     Float
+  priceType    String    @default("WHOLESALE")
+  unitPrice    Float
+  totalAmount  Float
+  session      String    @default("MORNING")
+  deliveryDate DateTime
+  channel      String    @default("DIRECT")
+  remarks      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([customerId])
+  @@index([productId])
+  @@index([deliveryDate])
+  @@index([session])
+  @@index([deliveryDate, session])
+}
+
+model OrderTemplate {
+  id         String  @id @default(cuid())
+  customerId String
+  productId  String
+  active     Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  days     TemplateDay[]
+
+  @@index([customerId])
+  @@index([productId])
+  @@index([active])
+}
+
+model TemplateDay {
+  id         String @id @default(cuid())
+  templateId String
+  // 0 = Sunday ... 6 = Saturday (matches JS Date#getDay())
+  dayOfWeek  Int
+  quantity   Float
+
+  template OrderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, dayOfWeek])
+  @@index([templateId])
+}
+
+model Production {
+  id               String   @id @default(cuid())
+  date             DateTime
+  productId        String
+  session          String   @default("MORNING")
+  requiredQuantity Float    @default(0)
+  producedQuantity Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([date, productId, session])
+  @@index([date])
+  @@index([productId])
+}
+
+model Payment {
+  id            String    @id @default(cuid())
+  customerId    String
+  invoiceAmount Float
+  paidAmount    Float
+  balanceAmount Float
+  paymentDate   DateTime
+  remarks       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([paymentDate])
+}
