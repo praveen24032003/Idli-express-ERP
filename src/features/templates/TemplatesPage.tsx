@@ -38,7 +38,9 @@ export function TemplatesPage() {
     try {
       const result = await templatesApi.generateToday();
       await useOrdersStore.getState().fetch();
-      toast.success(`Generated ${result.created} orders for today`);
+      toast.success(
+        `Today's orders: ${result.created} created, ${result.updated} updated${result.removed ? `, ${result.removed} removed` : ""}`,
+      );
       if (result.skipped.length > 0) {
         toast(`${result.skipped.length} template(s) already had orders today`, { icon: "ℹ️" });
       }

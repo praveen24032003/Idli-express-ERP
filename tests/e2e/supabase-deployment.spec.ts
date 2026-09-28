@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { formatCurrency, todayISO } from "../../src/utils/format";
+import { planPendingTemplateOrderSync } from "../../src/features/templates/template-order-sync";
 
 test("currency formatting preserves half-rupee prices", () => {
   expect(formatCurrency(3.5)).toContain("3.5");
@@ -10,6 +11,52 @@ test("todayISO uses the local calendar date as a date-only value", () => {
   const now = new Date();
   const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   expect(todayISO()).toBe(expected);
+});
+
+test("editing a template plans product and price updates only for its pending generated orders", async ({ request }, testInfo) => {
+  void request;
+  test.skip(testInfo.project.name !== "desktop", "Pure template-order synchronization test");
+  const plan = planPendingTemplateOrderSync(
+    {
+      customerId: "customer-1",
+      productId: "product-new",
+      product: { wholesalePrice: 3.5 },
+      days: [{ id: "day-1", templateId: "template-1", dayOfWeek: 1, session: "MORNING", quantity: 180 }],
+    },
+    [
+      { id: "morning-today", deliveryDate: "2026-09-28", session: "MORNING" },
+      { id: "evening-today", deliveryDate: "2026-09-28", session: "EVENING" },
+      { id: "morning-next-week", deliveryDate: "2026-10-05", session: "MORNING" },
+      { id: "historical-order", deliveryDate: "2026-09-27", session: "MORNING" },
+    ],
+    "2026-09-28",
+  );
+
+  expect(plan.updates).toEqual([
+    {
+      id: "morning-today",
+      values: {
+        customerId: "customer-1",
+        productId: "product-new",
+        quantity: 180,
+        priceType: "WHOLESALE",
+        unitPrice: 3.5,
+        remarks: "Auto-generated from recurring template",
+      },
+    },
+    {
+      id: "morning-next-week",
+      values: {
+        customerId: "customer-1",
+        productId: "product-new",
+        quantity: 180,
+        priceType: "WHOLESALE",
+        unitPrice: 3.5,
+        remarks: "Auto-generated from recurring template",
+      },
+    },
+  ]);
+  expect(plan.removals).toEqual(["evening-today"]);
 });
 
 test("setup gate or Supabase staff sign-in renders", async ({ page }) => {

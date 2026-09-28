@@ -3,6 +3,7 @@ import type { OrderTemplate, SessionType } from "../../types";
 import { SESSIONS } from "../../types";
 import { mapRow, readData, requireSupabase, toDatabaseRecord } from "../../services/supabase";
 import { todayISO } from "../../utils/format";
+import { planPendingTemplateOrderSync } from "./template-order-sync";
 
 const dayInput = z.object({
   dayOfWeek: z.number().int().min(0).max(6),
@@ -22,11 +23,45 @@ export type TemplateFormValues = z.output<typeof templateFormSchema>;
 
 export interface GenerateResult {
   created: number;
+  updated: number;
+  removed: number;
   skipped: string[];
   date: string;
 }
 
 const TEMPLATE_SESSIONS: SessionType[] = ["MORNING", "EVENING"];
+const GENERATED_ORDER_REMARK = "Auto-generated from recurring template";
+
+async function synchronizePendingGeneratedOrders(template: OrderTemplate) {
+  const client = requireSupabase();
+  const generated = readData(
+    await client
+      .from("orders")
+      .select("id, delivery_date, session")
+      .eq("order_template_id", template.id)
+      .gte("delivery_date", todayISO()),
+  ) as Array<{ id: string; delivery_date: string; session: SessionType }>;
+  const plan = planPendingTemplateOrderSync(
+    template,
+    generated.map((order) => ({ id: order.id, deliveryDate: order.delivery_date, session: order.session })),
+    todayISO(),
+  );
+
+  for (const order of plan.updates) {
+    readData(
+      await client
+        .from("orders")
+        .update(toDatabaseRecord({ ...order.values }))
+        .eq("id", order.id)
+        .select("id")
+        .single(),
+    );
+  }
+  for (const id of plan.removals) {
+    readData(await client.from("orders").delete().eq("id", id).select("id").single());
+  }
+  return { updated: plan.updates.length, removed: plan.removals.length };
+}
 
 export const templatesApi = {
   list: async (active?: boolean) => {
@@ -76,7 +111,7 @@ export const templatesApi = {
         readData(await client.from("template_days").insert(days).select("id"));
       }
     }
-    return mapRow<OrderTemplate>(
+    const updatedTemplate = mapRow<OrderTemplate>(
       readData(
         await client
           .from("order_templates")
@@ -85,6 +120,8 @@ export const templatesApi = {
           .single(),
       ),
     );
+    await synchronizePendingGeneratedOrders(updatedTemplate);
+    return updatedTemplate;
   },
   toggle: async (id: string) => {
     const client = requireSupabase();
@@ -119,35 +156,98 @@ export const templatesApi = {
       ),
     );
     const ordersToday = readData(
-      await client.from("orders").select("customer_id, product_id, session").eq("delivery_date", targetDate),
-    );
-    const existing = new Set(ordersToday.map((order) => `${order.customer_id}:${order.product_id}:${order.session}`));
+      await client
+        .from("orders")
+        .select("id, order_template_id, customer_id, product_id, session, remarks")
+        .eq("delivery_date", targetDate),
+    ) as Array<{
+      id: string;
+      order_template_id: string | null;
+      customer_id: string;
+      product_id: string;
+      session: SessionType;
+      remarks: string | null;
+    }>;
     const skipped: string[] = [];
-    const toInsert = templates.flatMap((template) => {
-      return TEMPLATE_SESSIONS.flatMap((session) => {
+    let created = 0;
+    let updated = 0;
+    let removed = 0;
+
+    for (const template of templates) {
+      for (const session of TEMPLATE_SESSIONS) {
         const day = template.days.find((item) => item.dayOfWeek === dayOfWeek && item.session === session);
-        if (!day || day.quantity <= 0) return [];
-        const key = `${template.customerId}:${template.productId}:${session}`;
-        if (existing.has(key)) {
-          skipped.push(`${template.customer?.name ?? "Customer"} - ${template.product?.name ?? "Product"} (${session.toLowerCase()})`);
-          return [];
+        const linkedOrder = ordersToday.find(
+          (order) => order.order_template_id === template.id && order.session === session,
+        );
+        if (!day || day.quantity <= 0) {
+          if (linkedOrder) {
+            readData(await client.from("orders").delete().eq("id", linkedOrder.id).select("id").single());
+            removed++;
+          }
+          continue;
         }
-        existing.add(key);
-        const unitPrice = template.product?.wholesalePrice ?? 0;
-        return [{
+
+        if (linkedOrder) {
+          readData(
+            await client
+              .from("orders")
+              .update({
+                customer_id: template.customerId,
+                product_id: template.productId,
+                quantity: day.quantity,
+                price_type: "WHOLESALE",
+                unit_price: template.product?.wholesalePrice ?? 0,
+                remarks: GENERATED_ORDER_REMARK,
+              })
+              .eq("id", linkedOrder.id)
+              .select("id")
+              .single(),
+          );
+          updated++;
+          continue;
+        }
+
+        const duplicateManualOrder = ordersToday.some(
+          (order) =>
+            !order.order_template_id &&
+            order.customer_id === template.customerId &&
+            order.product_id === template.productId &&
+            order.session === session,
+        );
+        if (duplicateManualOrder) {
+          skipped.push(`${template.customer?.name ?? "Customer"} - ${template.product?.name ?? "Product"} (${session.toLowerCase()})`);
+          continue;
+        }
+
+        const inserted = readData(
+          await client
+            .from("orders")
+            .insert({
+              order_template_id: template.id,
+              customer_id: template.customerId,
+              product_id: template.productId,
+              quantity: day.quantity,
+              price_type: "WHOLESALE",
+              unit_price: template.product?.wholesalePrice ?? 0,
+              session,
+              delivery_date: targetDate,
+              channel: "DIRECT",
+              remarks: GENERATED_ORDER_REMARK,
+            })
+            .select("id")
+            .single(),
+        ) as { id: string };
+        ordersToday.push({
+          id: inserted.id,
+          order_template_id: template.id,
           customer_id: template.customerId,
           product_id: template.productId,
-          quantity: day.quantity,
-          price_type: "WHOLESALE",
-          unit_price: unitPrice,
           session,
-          delivery_date: targetDate,
-          channel: "DIRECT",
-          remarks: "Auto-generated from recurring template",
-        }];
-      });
-    });
-    if (toInsert.length > 0) readData(await client.from("orders").insert(toInsert).select("id"));
-    return { created: toInsert.length, skipped, date: `${targetDate}T00:00:00.000Z` };
+          remarks: GENERATED_ORDER_REMARK,
+        });
+        created++;
+      }
+    }
+    return { created, updated, removed, skipped, date: `${targetDate}T00:00:00.000Z` };
   },
 };

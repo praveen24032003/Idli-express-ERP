@@ -88,7 +88,9 @@ verified against the configured Supabase project.
 
 Recurring templates store a separate quantity for each weekday and delivery session. Template
 generation creates both morning and evening orders independently; Orders and Dashboard use the
-same local calendar date for their default daily views.
+same local calendar date for their default daily views. Template edits synchronize linked generated
+orders for today and future dates, including product and wholesale price changes; manual orders and
+historical generated orders are not changed.
 
 ## Release Notes / Known Gaps
 

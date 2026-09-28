@@ -66,6 +66,7 @@ export interface Order {
   deliveryDate: string;
   channel: Channel;
   remarks: string | null;
+  orderTemplateId?: string | null;
   createdAt: string;
   updatedAt: string;
   customer?: Customer;

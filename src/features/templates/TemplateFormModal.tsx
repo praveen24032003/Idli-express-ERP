@@ -63,7 +63,7 @@ export function TemplateFormModal({ open, onClose, template }: Props) {
     try {
       if (template) {
         await update(template.id, values);
-        toast.success("Template updated");
+        toast.success("Template updated and pending generated orders synchronized");
       } else {
         await create(values);
         toast.success("Template created");
