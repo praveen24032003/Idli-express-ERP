@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { api } from "../../services/api";
 import type { OrderTemplate } from "../../types";
+import { mapRow, readData, requireSupabase, toDatabaseRecord } from "../../services/supabase";
 
 const dayInput = z.object({ dayOfWeek: z.number().int().min(0).max(6), quantity: z.coerce.number().nonnegative() });
 
@@ -20,10 +20,113 @@ export interface GenerateResult {
 }
 
 export const templatesApi = {
-  list: (active?: boolean) => api.get<OrderTemplate[]>(`/templates${active !== undefined ? `?active=${active}` : ""}`),
-  create: (data: TemplateFormValues) => api.post<OrderTemplate>("/templates", data),
-  update: (id: string, data: Partial<TemplateFormValues>) => api.put<OrderTemplate>(`/templates/${id}`, data),
-  toggle: (id: string) => api.patch<OrderTemplate>(`/templates/${id}/toggle`),
-  remove: (id: string) => api.delete<void>(`/templates/${id}`),
-  generateToday: (date?: string) => api.post<GenerateResult>("/templates/generate-today", { date }),
+  list: async (active?: boolean) => {
+    const client = requireSupabase();
+    let query = client
+      .from("order_templates")
+      .select("*, customer:customers(*), product:products(*), days:template_days(*)")
+      .order("created_at", { ascending: false });
+    if (active !== undefined) query = query.eq("active", active);
+    return mapRow<OrderTemplate[]>(readData(await query));
+  },
+  create: async (data: TemplateFormValues) => {
+    const client = requireSupabase();
+    const template = mapRow<OrderTemplate>(
+      readData(
+        await client
+          .from("order_templates")
+          .insert(toDatabaseRecord({ customerId: data.customerId, productId: data.productId, active: data.active }))
+          .select("*, customer:customers(*), product:products(*)")
+          .single(),
+      ),
+    );
+    const days = data.days.map((day) => ({ template_id: template.id, day_of_week: day.dayOfWeek, quantity: day.quantity }));
+    const insertedDays = readData(await client.from("template_days").insert(days).select());
+    return { ...template, days: mapRow<OrderTemplate["days"]>(insertedDays) };
+  },
+  update: async (id: string, data: Partial<TemplateFormValues>) => {
+    const client = requireSupabase();
+    const fields = toDatabaseRecord({ customerId: data.customerId, productId: data.productId, active: data.active });
+    if (Object.keys(fields).length > 0) {
+      readData(await client.from("order_templates").update(fields).eq("id", id).select("id").single());
+    }
+    if (data.days) {
+      readData(await client.from("template_days").delete().eq("template_id", id).select("id"));
+      if (data.days.length > 0) {
+        const days = data.days.map((day) => ({ template_id: id, day_of_week: day.dayOfWeek, quantity: day.quantity }));
+        readData(await client.from("template_days").insert(days).select("id"));
+      }
+    }
+    return mapRow<OrderTemplate>(
+      readData(
+        await client
+          .from("order_templates")
+          .select("*, customer:customers(*), product:products(*), days:template_days(*)")
+          .eq("id", id)
+          .single(),
+      ),
+    );
+  },
+  toggle: async (id: string) => {
+    const client = requireSupabase();
+    const current = readData(await client.from("order_templates").select("active").eq("id", id).single()) as {
+      active: boolean;
+    };
+    return mapRow<OrderTemplate>(
+      readData(
+        await client
+          .from("order_templates")
+          .update({ active: !current.active })
+          .eq("id", id)
+          .select("*, customer:customers(*), product:products(*), days:template_days(*)")
+          .single(),
+      ),
+    );
+  },
+  remove: async (id: string) => {
+    const client = requireSupabase();
+    readData(await client.from("order_templates").delete().eq("id", id).select("id").single());
+  },
+  generateToday: async (date?: string) => {
+    const client = requireSupabase();
+    const targetDate = date ?? new Date().toLocaleDateString("en-CA");
+    const dayOfWeek = new Date(`${targetDate}T00:00:00`).getDay();
+    const templates = mapRow<OrderTemplate[]>(
+      readData(
+        await client
+          .from("order_templates")
+          .select("*, customer:customers(*), product:products(*), days:template_days(*)")
+          .eq("active", true),
+      ),
+    );
+    const ordersToday = readData(
+      await client.from("orders").select("customer_id, product_id").eq("delivery_date", targetDate),
+    );
+    const existing = new Set(ordersToday.map((order) => `${order.customer_id}:${order.product_id}`));
+    const skipped: string[] = [];
+    const toInsert = templates.flatMap((template) => {
+      const day = template.days.find((item) => item.dayOfWeek === dayOfWeek);
+      if (!day || day.quantity <= 0) return [];
+      const key = `${template.customerId}:${template.productId}`;
+      if (existing.has(key)) {
+        skipped.push(`${template.customer?.name ?? "Customer"} - ${template.product?.name ?? "Product"}`);
+        return [];
+      }
+      existing.add(key);
+      const unitPrice = template.product?.wholesalePrice ?? 0;
+      return [{
+        customer_id: template.customerId,
+        product_id: template.productId,
+        quantity: day.quantity,
+        price_type: "WHOLESALE",
+        unit_price: unitPrice,
+        session: "MORNING",
+        delivery_date: targetDate,
+        channel: "DIRECT",
+        remarks: "Auto-generated from recurring template",
+      }];
+    });
+    if (toInsert.length > 0) readData(await client.from("orders").insert(toInsert).select("id"));
+    return { created: toInsert.length, skipped, date: `${targetDate}T00:00:00.000Z` };
+  },
 };

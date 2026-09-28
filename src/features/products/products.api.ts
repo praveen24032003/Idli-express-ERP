@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { api } from "../../services/api";
 import type { Product } from "../../types";
 import { PRODUCT_CATEGORIES } from "../../types";
+import { mapRow, readData, requireSupabase, toDatabaseRecord } from "../../services/supabase";
 
 export const productFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -14,11 +14,26 @@ export const productFormSchema = z.object({
 export type ProductFormValues = z.infer<typeof productFormSchema>;
 
 export const productsApi = {
-  list: (params: { active?: boolean } = {}) => {
-    const qs = params.active !== undefined ? `?active=${params.active}` : "";
-    return api.get<Product[]>(`/products${qs}`);
+  list: async (params: { active?: boolean } = {}) => {
+    const client = requireSupabase();
+    let query = client.from("products").select("*").order("name");
+    if (params.active !== undefined) query = query.eq("active", params.active);
+    return mapRow<Product[]>(readData(await query));
   },
-  create: (data: ProductFormValues) => api.post<Product>("/products", data),
-  update: (id: string, data: Partial<ProductFormValues>) => api.put<Product>(`/products/${id}`, data),
-  deactivate: (id: string) => api.delete<Product>(`/products/${id}`),
+  create: async (data: ProductFormValues) => {
+    const client = requireSupabase();
+    return mapRow<Product>(readData(await client.from("products").insert(toDatabaseRecord(data)).select().single()));
+  },
+  update: async (id: string, data: Partial<ProductFormValues>) => {
+    const client = requireSupabase();
+    return mapRow<Product>(
+      readData(await client.from("products").update(toDatabaseRecord(data)).eq("id", id).select().single()),
+    );
+  },
+  deactivate: async (id: string) => {
+    const client = requireSupabase();
+    return mapRow<Product>(
+      readData(await client.from("products").update({ active: false }).eq("id", id).select().single()),
+    );
+  },
 };

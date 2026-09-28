@@ -20,7 +20,7 @@ export function OfflineBanner() {
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-2 bg-ink-900 px-4 py-2 text-sm font-medium text-white">
       <WifiOff className="h-4 w-4" />
-      You're offline — showing cached data. New entries will sync once you're back online.
+      You're offline. Live business data and changes need an internet connection.
     </div>
   );
 }

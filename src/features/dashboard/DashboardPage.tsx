@@ -11,6 +11,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { PageHeader } from "../../components/PageHeader";
 import { LoadingState } from "../../components/LoadingState";
+import { EmptyState } from "../../components/EmptyState";
 import { dashboardApi, type DashboardSummary, type TrendPoint } from "./dashboard.api";
 import { formatCurrency } from "../../utils/format";
 
@@ -27,17 +28,51 @@ export function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([dashboardApi.summary(), dashboardApi.trend()])
       .then(([s, t]) => {
+        if (cancelled) return;
         setSummary(s);
         setTrend(t);
       })
-      .finally(() => setLoading(false));
-  }, []);
+      .catch((cause: unknown) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load dashboard data.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
-  if (loading || !summary) return <LoadingState label="Loading dashboard..." />;
+  if (loading) return <LoadingState label="Loading dashboard..." />;
+  if (error || !summary) {
+    return (
+      <div className="p-4 sm:p-6">
+        <EmptyState
+          title="Dashboard could not load"
+          description={error ?? "No dashboard data was returned."}
+          action={
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setLoading(true);
+                setError(null);
+                setReloadKey((key) => key + 1);
+              }}
+            >
+              Try again
+            </button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div>

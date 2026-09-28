@@ -16,6 +16,10 @@ dev-dist/
 playwright-report/
 test-results/
 .playwright-mcp/
+.agents/
+.claude/
+skills-lock.json
+supabase/.temp/
 dist
 dist-ssr
 *.local

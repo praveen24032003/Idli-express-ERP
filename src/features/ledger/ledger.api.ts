@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { api } from "../../services/api";
 import type { Payment } from "../../types";
+import { mapRow, readData, requireSupabase, toDatabaseRecord } from "../../services/supabase";
 
 export const paymentFormSchema = z.object({
   customerId: z.string().min(1, "Select a customer"),
@@ -21,9 +21,58 @@ export interface LedgerSummaryEntry {
 }
 
 export const ledgerApi = {
-  list: (customerId?: string) => api.get<Payment[]>(`/ledger${customerId ? `?customerId=${customerId}` : ""}`),
-  summary: () => api.get<LedgerSummaryEntry[]>("/ledger/summary"),
-  create: (data: PaymentFormValues) => api.post<Payment>("/ledger", data),
-  update: (id: string, data: Partial<PaymentFormValues>) => api.put<Payment>(`/ledger/${id}`, data),
-  remove: (id: string) => api.delete<void>(`/ledger/${id}`),
+  list: async (customerId?: string) => {
+    const client = requireSupabase();
+    let query = client.from("payments").select("*, customer:customers(*)").order("payment_date", { ascending: false });
+    if (customerId) query = query.eq("customer_id", customerId);
+    return mapRow<Payment[]>(readData(await query));
+  },
+  summary: async () => {
+    const payments = await ledgerApi.list();
+    const entries = new Map<string, LedgerSummaryEntry>();
+    for (const payment of payments) {
+      if (!payment.customer) continue;
+      const entry = entries.get(payment.customerId) ?? {
+        customerId: payment.customerId,
+        name: payment.customer.name,
+        invoiced: 0,
+        paid: 0,
+        balance: 0,
+      };
+      entry.invoiced += payment.invoiceAmount;
+      entry.paid += payment.paidAmount;
+      entry.balance += payment.balanceAmount;
+      entries.set(payment.customerId, entry);
+    }
+    return [...entries.values()].sort((a, b) => b.balance - a.balance);
+  },
+  create: async (data: PaymentFormValues) => {
+    const client = requireSupabase();
+    return mapRow<Payment>(
+      readData(
+        await client
+          .from("payments")
+          .insert(toDatabaseRecord(data))
+          .select("*, customer:customers(*)")
+          .single(),
+      ),
+    );
+  },
+  update: async (id: string, data: Partial<PaymentFormValues>) => {
+    const client = requireSupabase();
+    return mapRow<Payment>(
+      readData(
+        await client
+          .from("payments")
+          .update(toDatabaseRecord(data))
+          .eq("id", id)
+          .select("*, customer:customers(*)")
+          .single(),
+      ),
+    );
+  },
+  remove: async (id: string) => {
+    const client = requireSupabase();
+    readData(await client.from("payments").delete().eq("id", id).select("id").single());
+  },
 };

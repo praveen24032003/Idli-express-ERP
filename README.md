@@ -7,7 +7,7 @@ daily production planning, and collections for a food manufacturing & distributi
 
 - **Frontend:** React + TypeScript + Vite + Tailwind CSS + React Router + Zustand
 - **Forms:** React Hook Form + Zod
-- **Backend:** Express + Prisma ORM + SQLite
+- **Backend:** Supabase Auth + PostgreSQL + Row Level Security
 - **Tables:** TanStack Table v8
 - **Charts:** Recharts
 - **Reports:** CSV (PapaParse) + PDF (jsPDF)
@@ -16,15 +16,14 @@ daily production planning, and collections for a food manufacturing & distributi
 ## Project Structure
 
 ```
-prisma/              Prisma schema, migrations, seed script
-server/               Express API (routes per module, Prisma client, error handling)
+supabase/             Supabase CLI config and PostgreSQL migration
 src/
-  app/                (reserved for app-level composition)
+  app/                Supabase auth context and staff access gate
   components/         Shared UI (AppShell, PageHeader, EmptyState, LoadingState, ErrorBoundary)
   features/           One folder per module: dashboard, customers, products, orders,
                        templates, production, ledger, reports (api client + zustand store + pages)
   routes/             React Router route table
-  services/           Typed fetch wrapper (src/services/api.ts)
+  services/           Supabase browser client and database row mapping
   types/              Shared domain types (Customer, Product, Order, ...)
   utils/              Formatting + CSV/PDF export helpers
 ```
@@ -33,49 +32,42 @@ src/
 
 ```bash
 npm install
-npx prisma migrate dev --name init   # creates prisma/dev.db and runs the seed script
-npm run dev                          # runs Vite (5173) + Express API (4000) concurrently
+cp .env.example .env
+npm run dev
 ```
 
-Open http://localhost:5173.
+On Windows, copy `.env.example` to `.env` manually. Set the Supabase URL and publishable key in `.env`, then open http://localhost:5173 and sign in with an active Supabase staff account.
 
 ### Useful scripts
 
 | Script                  | Purpose                                      |
 |--------------------------|-----------------------------------------------|
-| `npm run dev`            | Run frontend + API together                   |
-| `npm run dev:web`        | Frontend only                                  |
-| `npm run dev:api`        | API only                                       |
-| `npm run db:seed`        | Re-seed the database (20 customers, 4 products, templates, production, payments) |
-| `npm run prisma:studio`  | Open Prisma Studio to inspect data             |
+| `npm run dev`            | Run Vite frontend                              |
 | `npm run build`          | Type-check + production build (also generates the service worker) |
 
 ## Database
 
-SQLite file lives at `prisma/dev.db` (path configured via `DATABASE_URL` in `.env`).
-Enums (customer type, product category, price type, session, channel) are modeled as
-`String` columns because Prisma's SQLite connector has no native enum support — validity is
-enforced with Zod at the API boundary (see `server/routes/*.ts` and `src/types/index.ts`).
+The deployed app uses Supabase PostgreSQL. Its initial schema is in
+`supabase/migrations/20260928051517_initial_erp_schema.sql`; it is already applied to the
+configured Supabase project. All public ERP tables have RLS enabled. Access requires a Supabase
+Auth user with an active row in `public.staff_members`. Do not apply the initial migration again.
+
+The old `server/` and `prisma/` directories are legacy SQLite/Express code and are not used by the
+current frontend deployment.
 
 ## PWA / Offline Support
 
 - Installable manifest (`vite-plugin-pwa`) with app icons in `public/icons/`.
 - Workbox precaches the app shell (JS/CSS/HTML) for instant offline loads.
-- GET requests to `/api/customers`, `/api/products`, `/api/orders`, `/api/templates`,
-  `/api/production`, `/api/ledger`, `/api/reports`, `/api/dashboard` use a
-  stale-while-revalidate strategy so previously loaded data is available offline.
 - An `OfflineBanner` shows when the browser goes offline.
-- Write operations (create/update/delete) currently require connectivity; the caching
-  layer is structured so a background sync queue can be added later without refactoring.
+- Supabase data reads and writes require an internet connection; offline mutation syncing is not implemented.
 
 ## Deployment
 
-1. `npm run build` — outputs the frontend to `dist/` and generates the service worker.
-2. Deploy the Express API (`server/`) to any Node host (set `DATABASE_URL` and `PORT`).
-   Run `npx prisma migrate deploy` against the production database on release.
-3. Serve `dist/` as static files behind the same origin as the API (or configure the
-   `VITE_API_URL` env var at build time and enable CORS on the API for a split deployment).
-4. Ensure HTTPS in production — service workers and installable PWAs require a secure origin.
+1. Import this GitHub repository into Vercel using build command `npm run build` and output directory `dist`.
+2. Set Vercel environment variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from the Supabase project API settings.
+3. Redeploy after adding the variables. HTTPS is required for service workers and PWA installation.
+4. In Supabase Auth settings, set the production Site URL and allowed redirect URLs to the Vercel domain.
 
 ## Testing
 
@@ -86,14 +78,11 @@ npm run build                    # type-check + production/PWA build
 npm run lint                     # lint source and configuration
 ```
 
-The E2E suite covers route navigation, seeded dashboard data, customer and product validation,
-order pricing calculation, recurring template generation workflow, production metrics, ledger
-payment validation, report tab switching, PWA manifest availability, and mobile bottom navigation.
+The E2E suite covers route navigation, auth/configuration gates, PWA manifest availability, and
+mobile bottom navigation. Database workflows should also be verified against the configured Supabase project.
 
 ## Release Notes / Known Gaps
 
-This is a complete Phase 1 operational MVP and is suitable for internal pilot use. Before public
-production rollout, add user authentication and role-based permissions, server-side deployment
-configuration, automated database backups, audit logging, and a durable offline mutation queue.
-The current PWA caches the app shell and previously loaded GET data; create/update/delete actions
-still require a network connection.
+This is a Phase 1 operational MVP. Staff authentication and active-staff RLS are enabled. Role-specific
+authorization (owner/manager/operator/accountant), automated backup procedures, audit logging,
+and offline mutation syncing remain future work. All current staff members share ERP table access.

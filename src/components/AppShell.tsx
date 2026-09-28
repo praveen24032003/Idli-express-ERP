@@ -8,10 +8,14 @@ import {
   Factory,
   Wallet,
   FileBarChart,
+  LogOut,
   Soup,
 } from "lucide-react";
 import { cn } from "../utils/format";
 import { OfflineBanner } from "./OfflineBanner";
+import { useAuth } from "../app/useAuth";
+import { LoginPage } from "../features/auth/LoginPage";
+import { LoadingState } from "./LoadingState";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -28,6 +32,24 @@ const NAV_ITEMS = [
 const MOBILE_NAV_ITEMS = [NAV_ITEMS[0], NAV_ITEMS[1], NAV_ITEMS[3], NAV_ITEMS[5], NAV_ITEMS[6]];
 
 export function AppShell() {
+  const { session, loading, configured, activeStaff, signOut } = useAuth();
+
+  if (!configured) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-ink-50 p-6">
+        <section className="card max-w-lg p-6">
+          <h1 className="text-lg font-bold text-ink-900">Supabase setup required</h1>
+          <p className="mt-2 text-sm text-ink-600">
+            Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> to the local environment or Vercel settings, then redeploy.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  if (loading) return <LoadingState label="Checking staff access..." />;
+  if (!session || !activeStaff) return <LoginPage />;
+
   return (
     <div className="min-h-screen bg-ink-50">
       <OfflineBanner />
@@ -59,10 +81,22 @@ export function AppShell() {
               </NavLink>
             ))}
           </nav>
+          <div className="border-t border-ink-200 p-3">
+            <p className="truncate px-3 pb-2 text-xs text-ink-500">{session.user.email}</p>
+            <button className="btn-ghost w-full justify-start" onClick={() => void signOut()}>
+              <LogOut className="h-5 w-5" /> Sign out
+            </button>
+          </div>
         </aside>
 
         {/* Main content */}
         <main className="min-w-0 flex-1 pb-24 md:pb-0">
+          <div className="flex items-center justify-between border-b border-ink-200 bg-white px-4 py-3 md:hidden">
+            <span className="font-semibold text-ink-900">Idly Express</span>
+            <button className="btn-ghost !min-h-0 !p-2" aria-label="Sign out" onClick={() => void signOut()}>
+              <LogOut className="h-5 w-5" />
+            </button>
+          </div>
           <Outlet />
         </main>
       </div>

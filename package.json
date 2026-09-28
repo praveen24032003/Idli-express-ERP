@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n WEB,API -c blue,green \"npm:dev:web\" \"npm:dev:api\"",
+    "dev": "vite",
     "dev:web": "vite",
     "dev:api": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",
@@ -24,6 +24,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
     "@prisma/client": "^5.22.0",
+    "@supabase/supabase-js": "^2.117.2",
     "@tanstack/react-table": "^8.21.3",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
