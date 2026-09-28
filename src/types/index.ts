@@ -76,6 +76,7 @@ export interface TemplateDay {
   id: string;
   templateId: string;
   dayOfWeek: number;
+  session: SessionType;
   quantity: number;
 }
 

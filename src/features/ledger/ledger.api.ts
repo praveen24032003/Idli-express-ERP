@@ -10,7 +10,8 @@ export const paymentFormSchema = z.object({
   remarks: z.string().optional().or(z.literal("")),
 });
 
-export type PaymentFormValues = z.infer<typeof paymentFormSchema>;
+export type PaymentFormInput = z.input<typeof paymentFormSchema>;
+export type PaymentFormValues = z.output<typeof paymentFormSchema>;
 
 export interface LedgerSummaryEntry {
   customerId: string;

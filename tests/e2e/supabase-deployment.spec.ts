@@ -1,4 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { formatCurrency } from "../../src/utils/format";
+
+test("currency formatting preserves half-rupee prices", () => {
+  expect(formatCurrency(3.5)).toContain("3.5");
+  expect(formatCurrency(3.5)).not.toContain("4.00");
+});
 
 test("setup gate or Supabase staff sign-in renders", async ({ page }) => {
   await page.goto("/");

@@ -49,8 +49,12 @@ On Windows, copy `.env.example` to `.env` manually. Set the Supabase URL and pub
 
 The deployed app uses Supabase PostgreSQL. Its initial schema is in
 `supabase/migrations/20260928051517_initial_erp_schema.sql`; it is already applied to the
-configured Supabase project. All public ERP tables have RLS enabled. Access requires a Supabase
+configured Supabase project. Template days support separate morning/evening quantities through
+`supabase/migrations/20260928065102_add_template_day_session.sql`, also applied. All public ERP tables have RLS enabled. Access requires a Supabase
 Auth user with an active row in `public.staff_members`. Do not apply the initial migration again.
+
+Price formatting displays rupee amounts with up to two decimal places. New price and quantity
+inputs start blank; recurring templates have separate Morning and Evening values for every weekday.
 
 The old `server/` and `prisma/` directories are legacy SQLite/Express code and are not used by the
 current frontend deployment.
@@ -78,8 +82,9 @@ npm run build                    # type-check + production/PWA build
 npm run lint                     # lint source and configuration
 ```
 
-The E2E suite covers route navigation, auth/configuration gates, PWA manifest availability, and
-mobile bottom navigation. Database workflows should also be verified against the configured Supabase project.
+The E2E suite covers auth/configuration gates, removal of Express API calls, fractional rupee display,
+PWA manifest availability, and mobile authentication layout. Database workflows should also be
+verified against the configured Supabase project.
 
 ## Release Notes / Known Gaps
 

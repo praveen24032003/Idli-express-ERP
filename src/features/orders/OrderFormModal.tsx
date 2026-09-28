@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from "react";
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
-import { orderFormSchema, type OrderFormValues } from "./orders.api";
+import { orderFormSchema, type OrderFormInput, type OrderFormValues } from "./orders.api";
 import { useOrdersStore } from "./orders.store";
 import { useCustomersStore } from "../customers/customers.store";
 import { useProductsStore } from "../products/products.store";
@@ -21,7 +21,7 @@ function toDateInputValue(iso: string) {
   return iso.slice(0, 10);
 }
 
-function defaults(order?: Order | null): OrderFormValues {
+function defaults(order?: Order | null): OrderFormInput {
   if (order) {
     return {
       customerId: order.customerId,
@@ -37,7 +37,7 @@ function defaults(order?: Order | null): OrderFormValues {
   return {
     customerId: "",
     productId: "",
-    quantity: 0,
+    quantity: "",
     priceType: "WHOLESALE",
     session: "MORNING",
     deliveryDate: toDateInputValue(todayISO()),
@@ -57,8 +57,8 @@ export function OrderFormModal({ open, onClose, order }: Props) {
     reset,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<OrderFormValues>({
-    resolver: zodResolver(orderFormSchema) as Resolver<OrderFormValues>,
+  } = useForm<OrderFormInput, unknown, OrderFormValues>({
+    resolver: zodResolver(orderFormSchema),
     defaultValues: defaults(order),
   });
 

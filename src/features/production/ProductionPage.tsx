@@ -11,7 +11,7 @@ import { cn } from "../../utils/format";
 export function ProductionPage() {
   const { date, records, loading, setDate, fetch, updateProduced } = useProductionStore();
   const [session, setSession] = useState<SessionType>("MORNING");
-  const [drafts, setDrafts] = useState<Record<string, number>>({});
+  const [drafts, setDrafts] = useState<Record<string, number | "">>({});
 
   useEffect(() => {
     void fetch();
@@ -29,7 +29,7 @@ export function ProductionPage() {
 
   const handleSave = async (id: string) => {
     const value = drafts[id];
-    if (value === undefined) return;
+    if (value === undefined || value === "") return;
     try {
       await updateProduced(id, value);
       toast.success("Production updated");
@@ -91,7 +91,7 @@ export function ProductionPage() {
           <div className="space-y-3">
             {sessionRecords.map((record) => {
               const variance = record.producedQuantity - record.requiredQuantity;
-              const draftValue = drafts[record.id] ?? record.producedQuantity;
+              const draftValue = drafts[record.id] ?? (record.producedQuantity === 0 ? "" : record.producedQuantity);
               const pct = record.requiredQuantity > 0 ? Math.min(100, Math.round((record.producedQuantity / record.requiredQuantity) * 100)) : 0;
               return (
                 <div key={record.id} className="card p-4">
@@ -118,9 +118,14 @@ export function ProductionPage() {
                       <input
                         id={`produced-${record.id}`}
                         type="number"
+                        min="0"
+                        step="1"
+                        placeholder="0"
                         className="input"
                         value={draftValue}
-                        onChange={(e) => setDrafts((d) => ({ ...d, [record.id]: Number(e.target.value) }))}
+                        onChange={(e) =>
+                          setDrafts((d) => ({ ...d, [record.id]: e.target.value === "" ? "" : Number(e.target.value) }))
+                        }
                       />
                     </div>
                     <button className="btn-primary" onClick={() => handleSave(record.id)}>

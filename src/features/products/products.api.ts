@@ -11,7 +11,8 @@ export const productFormSchema = z.object({
   active: z.boolean(),
 });
 
-export type ProductFormValues = z.infer<typeof productFormSchema>;
+export type ProductFormInput = z.input<typeof productFormSchema>;
+export type ProductFormValues = z.output<typeof productFormSchema>;
 
 export const productsApi = {
   list: async (params: { active?: boolean } = {}) => {

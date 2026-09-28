@@ -1,8 +1,13 @@
 import { z } from "zod";
-import type { OrderTemplate } from "../../types";
+import type { OrderTemplate, SessionType } from "../../types";
+import { SESSIONS } from "../../types";
 import { mapRow, readData, requireSupabase, toDatabaseRecord } from "../../services/supabase";
 
-const dayInput = z.object({ dayOfWeek: z.number().int().min(0).max(6), quantity: z.coerce.number().nonnegative() });
+const dayInput = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  session: z.enum(SESSIONS),
+  quantity: z.coerce.number().nonnegative(),
+});
 
 export const templateFormSchema = z.object({
   customerId: z.string().min(1, "Select a customer"),
@@ -11,13 +16,16 @@ export const templateFormSchema = z.object({
   days: z.array(dayInput),
 });
 
-export type TemplateFormValues = z.infer<typeof templateFormSchema>;
+export type TemplateFormInput = z.input<typeof templateFormSchema>;
+export type TemplateFormValues = z.output<typeof templateFormSchema>;
 
 export interface GenerateResult {
   created: number;
   skipped: string[];
   date: string;
 }
+
+const TEMPLATE_SESSIONS: SessionType[] = ["MORNING", "EVENING"];
 
 export const templatesApi = {
   list: async (active?: boolean) => {
@@ -40,7 +48,12 @@ export const templatesApi = {
           .single(),
       ),
     );
-    const days = data.days.map((day) => ({ template_id: template.id, day_of_week: day.dayOfWeek, quantity: day.quantity }));
+    const days = data.days.map((day) => ({
+      template_id: template.id,
+      day_of_week: day.dayOfWeek,
+      session: day.session,
+      quantity: day.quantity,
+    }));
     const insertedDays = readData(await client.from("template_days").insert(days).select());
     return { ...template, days: mapRow<OrderTemplate["days"]>(insertedDays) };
   },
@@ -53,7 +66,12 @@ export const templatesApi = {
     if (data.days) {
       readData(await client.from("template_days").delete().eq("template_id", id).select("id"));
       if (data.days.length > 0) {
-        const days = data.days.map((day) => ({ template_id: id, day_of_week: day.dayOfWeek, quantity: day.quantity }));
+        const days = data.days.map((day) => ({
+          template_id: id,
+          day_of_week: day.dayOfWeek,
+          session: day.session,
+          quantity: day.quantity,
+        }));
         readData(await client.from("template_days").insert(days).select("id"));
       }
     }
@@ -100,31 +118,33 @@ export const templatesApi = {
       ),
     );
     const ordersToday = readData(
-      await client.from("orders").select("customer_id, product_id").eq("delivery_date", targetDate),
+      await client.from("orders").select("customer_id, product_id, session").eq("delivery_date", targetDate),
     );
-    const existing = new Set(ordersToday.map((order) => `${order.customer_id}:${order.product_id}`));
+    const existing = new Set(ordersToday.map((order) => `${order.customer_id}:${order.product_id}:${order.session}`));
     const skipped: string[] = [];
     const toInsert = templates.flatMap((template) => {
-      const day = template.days.find((item) => item.dayOfWeek === dayOfWeek);
-      if (!day || day.quantity <= 0) return [];
-      const key = `${template.customerId}:${template.productId}`;
-      if (existing.has(key)) {
-        skipped.push(`${template.customer?.name ?? "Customer"} - ${template.product?.name ?? "Product"}`);
-        return [];
-      }
-      existing.add(key);
-      const unitPrice = template.product?.wholesalePrice ?? 0;
-      return [{
-        customer_id: template.customerId,
-        product_id: template.productId,
-        quantity: day.quantity,
-        price_type: "WHOLESALE",
-        unit_price: unitPrice,
-        session: "MORNING",
-        delivery_date: targetDate,
-        channel: "DIRECT",
-        remarks: "Auto-generated from recurring template",
-      }];
+      return TEMPLATE_SESSIONS.flatMap((session) => {
+        const day = template.days.find((item) => item.dayOfWeek === dayOfWeek && item.session === session);
+        if (!day || day.quantity <= 0) return [];
+        const key = `${template.customerId}:${template.productId}:${session}`;
+        if (existing.has(key)) {
+          skipped.push(`${template.customer?.name ?? "Customer"} - ${template.product?.name ?? "Product"} (${session.toLowerCase()})`);
+          return [];
+        }
+        existing.add(key);
+        const unitPrice = template.product?.wholesalePrice ?? 0;
+        return [{
+          customer_id: template.customerId,
+          product_id: template.productId,
+          quantity: day.quantity,
+          price_type: "WHOLESALE",
+          unit_price: unitPrice,
+          session,
+          delivery_date: targetDate,
+          channel: "DIRECT",
+          remarks: "Auto-generated from recurring template",
+        }];
+      });
     });
     if (toInsert.length > 0) readData(await client.from("orders").insert(toInsert).select("id"));
     return { created: toInsert.length, skipped, date: `${targetDate}T00:00:00.000Z` };

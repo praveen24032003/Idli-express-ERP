@@ -8,7 +8,7 @@ import { useTemplatesStore } from "./templates.store";
 import { templatesApi } from "./templates.api";
 import { TemplateFormModal } from "./TemplateFormModal";
 import type { OrderTemplate } from "../../types";
-import { WEEKDAYS } from "../../types";
+import { SESSIONS, WEEKDAYS } from "../../types";
 import { cn } from "../../utils/format";
 
 export function TemplatesPage() {
@@ -115,16 +115,25 @@ export function TemplatesPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
-                  {WEEKDAYS.map((wd) => {
-                    const qty = template.days.find((d) => d.dayOfWeek === wd.value)?.quantity ?? 0;
-                    return (
-                      <div key={wd.value} className="rounded-lg bg-ink-50 p-2 text-center">
-                        <p className="text-[10px] font-medium uppercase text-ink-400">{wd.label.slice(0, 3)}</p>
-                        <p className="font-semibold text-ink-800">{qty}</p>
-                      </div>
-                    );
-                  })}
+                <div className="mt-3 grid grid-cols-[minmax(72px,1fr)_minmax(60px,1fr)_minmax(60px,1fr)] gap-2">
+                  <span className="text-center text-[10px] font-medium uppercase text-ink-400">Day</span>
+                  <span className="text-center text-[10px] font-medium uppercase text-ink-400">Morning</span>
+                  <span className="text-center text-[10px] font-medium uppercase text-ink-400">Evening</span>
+                  {WEEKDAYS.map((weekday) => (
+                    <div key={weekday.value} className="contents">
+                      <span className="self-center text-xs font-medium text-ink-600">{weekday.label.slice(0, 3)}</span>
+                      {SESSIONS.map((session) => {
+                        const quantity = template.days.find(
+                          (day) => day.dayOfWeek === weekday.value && day.session === session,
+                        )?.quantity ?? 0;
+                        return (
+                          <span key={`${weekday.value}-${session}`} className="rounded-lg bg-ink-50 p-2 text-center font-semibold text-ink-800">
+                            {quantity}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}

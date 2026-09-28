@@ -14,7 +14,8 @@ export const orderFormSchema = z.object({
   remarks: z.string().optional().or(z.literal("")),
 });
 
-export type OrderFormValues = z.infer<typeof orderFormSchema>;
+export type OrderFormInput = z.input<typeof orderFormSchema>;
+export type OrderFormValues = z.output<typeof orderFormSchema>;
 
 export interface OrderFilters {
   date?: string;

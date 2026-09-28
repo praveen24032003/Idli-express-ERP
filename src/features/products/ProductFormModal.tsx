@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
-import { productFormSchema, type ProductFormValues } from "./products.api";
+import { productFormSchema, type ProductFormInput, type ProductFormValues } from "./products.api";
 import { useProductsStore } from "./products.store";
 import type { Product } from "../../types";
 import { PRODUCT_CATEGORIES } from "../../types";
@@ -14,11 +14,11 @@ interface Props {
   product?: Product | null;
 }
 
-const DEFAULTS: ProductFormValues = {
+const DEFAULTS: ProductFormInput = {
   name: "",
   category: "OTHER",
-  wholesalePrice: 0,
-  retailPrice: 0,
+  wholesalePrice: "",
+  retailPrice: "",
   active: true,
 };
 
@@ -29,8 +29,8 @@ export function ProductFormModal({ open, onClose, product }: Props) {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<ProductFormValues>({
-    resolver: zodResolver(productFormSchema) as Resolver<ProductFormValues>,
+  } = useForm<ProductFormInput, unknown, ProductFormValues>({
+    resolver: zodResolver(productFormSchema),
     defaultValues: DEFAULTS,
   });
 
@@ -107,7 +107,9 @@ export function ProductFormModal({ open, onClose, product }: Props) {
               <input
                 id="wholesalePrice"
                 type="number"
-                step="0.5"
+                min="0"
+                step="0.01"
+                placeholder="0"
                 className="input"
                 {...register("wholesalePrice")}
               />
@@ -117,7 +119,7 @@ export function ProductFormModal({ open, onClose, product }: Props) {
               <label className="label" htmlFor="retailPrice">
                 Retail Price *
               </label>
-              <input id="retailPrice" type="number" step="0.5" className="input" {...register("retailPrice")} />
+              <input id="retailPrice" type="number" min="0" step="0.01" placeholder="0" className="input" {...register("retailPrice")} />
               {errors.retailPrice && <p className="field-error">{errors.retailPrice.message}</p>}
             </div>
           </div>

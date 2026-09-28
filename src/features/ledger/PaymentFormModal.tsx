@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
-import { paymentFormSchema, type PaymentFormValues } from "./ledger.api";
+import { paymentFormSchema, type PaymentFormInput, type PaymentFormValues } from "./ledger.api";
 import { useLedgerStore } from "./ledger.store";
 import { useCustomersStore } from "../customers/customers.store";
 import { todayISO } from "../../utils/format";
@@ -23,12 +23,12 @@ export function PaymentFormModal({ open, onClose, defaultCustomerId }: Props) {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<PaymentFormValues>({
-    resolver: zodResolver(paymentFormSchema) as Resolver<PaymentFormValues>,
+  } = useForm<PaymentFormInput, unknown, PaymentFormValues>({
+    resolver: zodResolver(paymentFormSchema),
     defaultValues: {
       customerId: defaultCustomerId ?? "",
-      invoiceAmount: 0,
-      paidAmount: 0,
+      invoiceAmount: "",
+      paidAmount: "",
       paymentDate: todayISO().slice(0, 10),
       remarks: "",
     },
@@ -39,8 +39,8 @@ export function PaymentFormModal({ open, onClose, defaultCustomerId }: Props) {
       if (customers.length === 0) void fetchCustomers();
       reset({
         customerId: defaultCustomerId ?? "",
-        invoiceAmount: 0,
-        paidAmount: 0,
+        invoiceAmount: "",
+        paidAmount: "",
         paymentDate: todayISO().slice(0, 10),
         remarks: "",
       });
@@ -91,13 +91,13 @@ export function PaymentFormModal({ open, onClose, defaultCustomerId }: Props) {
               <label className="label" htmlFor="invoiceAmount">
                 Invoice Amount *
               </label>
-              <input id="invoiceAmount" type="number" step="1" className="input" {...register("invoiceAmount")} />
+              <input id="invoiceAmount" type="number" min="0" step="0.01" placeholder="0" className="input" {...register("invoiceAmount")} />
             </div>
             <div>
               <label className="label" htmlFor="paidAmount">
                 Paid Amount *
               </label>
-              <input id="paidAmount" type="number" step="1" className="input" {...register("paidAmount")} />
+              <input id="paidAmount" type="number" min="0" step="0.01" placeholder="0" className="input" {...register("paidAmount")} />
             </div>
           </div>
 

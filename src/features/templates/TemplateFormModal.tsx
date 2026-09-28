@@ -1,14 +1,14 @@
 import { useEffect } from "react";
-import { useForm, useFieldArray, type Resolver } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
-import { templateFormSchema, type TemplateFormValues } from "./templates.api";
+import { templateFormSchema, type TemplateFormInput, type TemplateFormValues } from "./templates.api";
 import { useTemplatesStore } from "./templates.store";
 import { useCustomersStore } from "../customers/customers.store";
 import { useProductsStore } from "../products/products.store";
 import type { OrderTemplate } from "../../types";
-import { WEEKDAYS } from "../../types";
+import { SESSIONS, WEEKDAYS } from "../../types";
 
 interface Props {
   open: boolean;
@@ -16,11 +16,15 @@ interface Props {
   template?: OrderTemplate | null;
 }
 
-function defaults(template?: OrderTemplate | null): TemplateFormValues {
-  const days = WEEKDAYS.map((wd) => ({
-    dayOfWeek: wd.value,
-    quantity: template?.days.find((d) => d.dayOfWeek === wd.value)?.quantity ?? 0,
-  }));
+function defaults(template?: OrderTemplate | null): TemplateFormInput {
+  const days = WEEKDAYS.flatMap((weekday) =>
+    SESSIONS.map((session) => ({
+      dayOfWeek: weekday.value,
+      session,
+      quantity:
+        template?.days.find((day) => day.dayOfWeek === weekday.value && day.session === session)?.quantity ?? "",
+    })),
+  );
   return {
     customerId: template?.customerId ?? "",
     productId: template?.productId ?? "",
@@ -38,14 +42,11 @@ export function TemplateFormModal({ open, onClose, template }: Props) {
     register,
     handleSubmit,
     reset,
-    control,
     formState: { errors, isSubmitting },
-  } = useForm<TemplateFormValues>({
-    resolver: zodResolver(templateFormSchema) as Resolver<TemplateFormValues>,
+  } = useForm<TemplateFormInput, unknown, TemplateFormValues>({
+    resolver: zodResolver(templateFormSchema),
     defaultValues: defaults(template),
   });
-
-  const { fields } = useFieldArray({ control, name: "days" });
 
   useEffect(() => {
     if (open) {
@@ -114,17 +115,41 @@ export function TemplateFormModal({ open, onClose, template }: Props) {
             {errors.productId && <p className="field-error">{errors.productId.message}</p>}
           </div>
 
-          <div>
-            <p className="label mb-2">Daily Quantity</p>
-            <div className="grid grid-cols-2 gap-3">
-              {fields.map((field, index) => (
-                <div key={field.id}>
-                  <label className="text-xs font-medium text-ink-500">{WEEKDAYS[index].label}</label>
-                  <input type="number" step="1" className="input" {...register(`days.${index}.quantity` as const)} />
-                </div>
-              ))}
+          <fieldset className="space-y-2">
+            <legend className="label mb-2">Daily Quantity</legend>
+            <div className="grid grid-cols-[minmax(76px,1fr)_minmax(88px,1fr)_minmax(88px,1fr)] items-center gap-2 px-1">
+              <span className="text-xs font-medium text-ink-400">Day</span>
+              <span className="text-xs font-medium text-ink-500">Morning</span>
+              <span className="text-xs font-medium text-ink-500">Evening</span>
+              {WEEKDAYS.map((weekday, dayIndex) => {
+                const morningIndex = dayIndex * SESSIONS.length;
+                const eveningIndex = morningIndex + 1;
+                return (
+                  <div key={weekday.value} className="contents">
+                    <span className="text-sm font-medium text-ink-700">{weekday.label}</span>
+                    <input
+                      aria-label={`${weekday.label} morning quantity`}
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      className="input"
+                      {...register(`days.${morningIndex}.quantity` as const)}
+                    />
+                    <input
+                      aria-label={`${weekday.label} evening quantity`}
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      className="input"
+                      {...register(`days.${eveningIndex}.quantity` as const)}
+                    />
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          </fieldset>
 
           <label className="flex items-center gap-2 text-sm font-medium text-ink-700">
             <input type="checkbox" className="h-5 w-5 rounded border-ink-300" {...register("active")} />
