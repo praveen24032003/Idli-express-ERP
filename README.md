@@ -86,6 +86,10 @@ The E2E suite covers auth/configuration gates, removal of Express API calls, fra
 PWA manifest availability, and mobile authentication layout. Database workflows should also be
 verified against the configured Supabase project.
 
+Recurring templates store a separate quantity for each weekday and delivery session. Template
+generation creates both morning and evening orders independently; Orders and Dashboard use the
+same local calendar date for their default daily views.
+
 ## Release Notes / Known Gaps
 
 This is a Phase 1 operational MVP. Staff authentication and active-staff RLS are enabled. Role-specific

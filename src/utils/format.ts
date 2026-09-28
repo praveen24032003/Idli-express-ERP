@@ -21,6 +21,8 @@ export function formatDate(date: string | Date): string {
 
 export function todayISO(): string {
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }

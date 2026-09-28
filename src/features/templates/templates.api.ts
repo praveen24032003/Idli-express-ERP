@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { OrderTemplate, SessionType } from "../../types";
 import { SESSIONS } from "../../types";
 import { mapRow, readData, requireSupabase, toDatabaseRecord } from "../../services/supabase";
+import { todayISO } from "../../utils/format";
 
 const dayInput = z.object({
   dayOfWeek: z.number().int().min(0).max(6),
@@ -107,7 +108,7 @@ export const templatesApi = {
   },
   generateToday: async (date?: string) => {
     const client = requireSupabase();
-    const targetDate = date ?? new Date().toLocaleDateString("en-CA");
+    const targetDate = date ?? todayISO();
     const dayOfWeek = new Date(`${targetDate}T00:00:00`).getDay();
     const templates = mapRow<OrderTemplate[]>(
       readData(

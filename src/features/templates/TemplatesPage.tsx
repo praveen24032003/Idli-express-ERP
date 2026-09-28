@@ -5,6 +5,7 @@ import { PageHeader } from "../../components/PageHeader";
 import { LoadingState } from "../../components/LoadingState";
 import { EmptyState } from "../../components/EmptyState";
 import { useTemplatesStore } from "./templates.store";
+import { useOrdersStore } from "../orders/orders.store";
 import { templatesApi } from "./templates.api";
 import { TemplateFormModal } from "./TemplateFormModal";
 import type { OrderTemplate } from "../../types";
@@ -36,6 +37,7 @@ export function TemplatesPage() {
     setGenerating(true);
     try {
       const result = await templatesApi.generateToday();
+      await useOrdersStore.getState().fetch();
       toast.success(`Generated ${result.created} orders for today`);
       if (result.skipped.length > 0) {
         toast(`${result.skipped.length} template(s) already had orders today`, { icon: "ℹ️" });

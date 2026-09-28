@@ -1,5 +1,6 @@
 import { mapRow, readData, requireSupabase } from "../../services/supabase";
 import type { Order, Production, Payment } from "../../types";
+import { todayISO } from "../../utils/format";
 
 export interface DashboardSummary {
   ordersToday: number;
@@ -20,7 +21,7 @@ export interface TrendPoint {
 export const dashboardApi = {
   summary: async () => {
     const client = requireSupabase();
-    const date = new Date().toLocaleDateString("en-CA");
+    const date = todayISO();
     const [ordersResult, customersResult, productionResult, paymentsResult] = await Promise.all([
       client.from("orders").select("*").eq("delivery_date", date),
       client.from("customers").select("id", { count: "exact", head: true }).eq("active", true),
@@ -47,7 +48,7 @@ export const dashboardApi = {
     const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - 6);
     const start = startDate.toLocaleDateString("en-CA");
-    const end = endDate.toLocaleDateString("en-CA");
+    const end = todayISO();
     const orders = mapRow<Order[]>(
       readData(await client.from("orders").select("delivery_date, total_amount").gte("delivery_date", start).lte("delivery_date", end)),
     );

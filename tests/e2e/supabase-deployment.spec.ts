@@ -1,9 +1,15 @@
 import { test, expect } from "@playwright/test";
-import { formatCurrency } from "../../src/utils/format";
+import { formatCurrency, todayISO } from "../../src/utils/format";
 
 test("currency formatting preserves half-rupee prices", () => {
   expect(formatCurrency(3.5)).toContain("3.5");
   expect(formatCurrency(3.5)).not.toContain("4.00");
+});
+
+test("todayISO uses the local calendar date as a date-only value", () => {
+  const now = new Date();
+  const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  expect(todayISO()).toBe(expected);
 });
 
 test("setup gate or Supabase staff sign-in renders", async ({ page }) => {
